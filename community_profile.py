@@ -27,6 +27,7 @@ import classifyBWA_16S
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate a community profile based on 16S reads')
     parser.add_argument('-p','--paired-reads', help='metagenomic reads to use, comma separated',required=True)
+    parser.add_argument('--singles', nargs='+', help='singleton metagenomic reads to use')
     parser.add_argument('-o','--output_dir', help='output directory', default='community_profile')
     parser.add_argument('-t', '--threads', help='number of threads', type = int, default = 16)
     parser.add_argument('-q', '--quiet', help='Surpress all output', action='store_true')
@@ -46,7 +47,7 @@ if __name__ == '__main__':
     pair2 = splits[1]
     print "Using read files",pair1,"and",pair2
     sample['pairs'] = splits
-    sample['singles'] = []
+    sample['singles'] = args.singles
     if len(sample['pairs']) != 2:
         raise ValueError("Need 2 read files comma separated, found %i",len(splits))
     sample_name = 'sample0'

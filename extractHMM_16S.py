@@ -72,9 +72,9 @@ class Extract16S(object):
     def __init__(self):
         self.bQuiet = False
         
-        self.bacteriaModelFile = '/srv/whitlam/bio/db/communitym/SSU_bacteria.hmm'
-        self.archaeaModelFile = '/srv/whitlam/bio/db/communitym/SSU_archaea.hmm'
-        self.eukModelFile = '/srv/whitlam/bio/db/communitym/SSU_euk.hmm'
+        self.bacteriaModelFile = '/srv/whitlam/bio/db/communitym/ssu_hmm/SSU_bacteria.hmm'
+        self.archaeaModelFile = '/srv/whitlam/bio/db/communitym/ssu_hmm/SSU_archaea.hmm'
+        self.eukModelFile = '/srv/whitlam/bio/db/communitym/ssu_hmm/SSU_euk.hmm'
 
     def __getHits(self, hitTable):
         seqIds = set()
