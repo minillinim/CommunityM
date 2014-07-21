@@ -32,8 +32,7 @@ __status__ = 'Development'
 
 import argparse
 import ntpath
-
-from biom.table import table_factory, SparseOTUTable
+import os
 
 from readConfig import ReadConfig
 from taxonomyUtils import ranksByLabel, ranksByLevel, rankPrefixes, LCA, parseTaxon
@@ -49,9 +48,11 @@ class BuildTable(object):
 
             taxaName, _ = parseTaxon(taxa[rankIndex])
 
-            if bIgnoreUnmapped and 'unmapped' in taxaName:
-                countUnmapped += 1
-                continue
+            if bIgnoreUnmapped:
+                # check if taxa is unmapped, or if we are building a table at the sequence id level check if the species is unmapped
+                if 'unmapped' in taxaName or (rankIndex == ranksByLabel['SEQ_ID'] and 'unmapped' in parseTaxon(taxa[ranksByLabel['Species']])[0]):
+                    countUnmapped += 1
+                    continue
 
             taxaDict = {}
             taxaList = []
@@ -59,9 +60,7 @@ class BuildTable(object):
                 taxaName, bootstrapSupport = parseTaxon(taxa[r])
 
                 if bootstrapSupport < bootstrapThreshold:
-                    taxaName = rankPrefixes[r]
-                else:
-                    taxaName = taxaName.replace('unclassified', '')
+                    taxaName = rankPrefixes[r] + 'unclassified'
 
                 taxaDict[ranksByLevel[r]] = taxaName
                 taxaList.append(taxaName)
@@ -93,6 +92,8 @@ class BuildTable(object):
 
                 seqClassification[seqId] = taxa
 
+        identicalSeq = 0
+        nonIdenticalSeq = 0
         with open(classificationFile2) as fin:
             for line in fin:
                 lineSplit = line.split('\t')
@@ -101,7 +102,17 @@ class BuildTable(object):
 
                 if not bTreatPairsAsSingles:
                     seqId = seqId[0:seqId.rfind('/')]
-                    seqClassification[seqId] = LCA(taxa, seqClassification[seqId])
+                    
+                    
+                    
+                    if 'unmapped' not in ';'.join(seqClassification[seqId]) and 'unmapped' not in ';'.join(taxa):
+                        if seqClassification[seqId][7] == taxa[7]:
+                            identicalSeq += 1
+                        else:
+                            nonIdenticalSeq += 1
+                    
+                    
+                    seqClassification[seqId] = LCA(taxa, seqClassification[seqId])                           
                 else:
                     seqClassification[seqId] = taxa
 
@@ -121,35 +132,33 @@ class BuildTable(object):
 
         self.parseClassification(seqClassification, bIgnoreUnmapped, bootstrapThreshold, rankIndex, counts, taxonomy)
 
-    def write(self, output, sampleCounts, taxonomy):
+    def writeTable(self, output, sampleCounts, taxonomy):
         fout = open(output, 'w')
+        
+        fout.write("#OTU_ID")
+        fout.write("\t" + "\t".join(sampleCounts.keys()))
+        fout.write("\tConsensus Lineage\n")
 
-        sampleIds = sorted(sampleCounts.keys())
-        otuIds = sorted(taxonomy.keys())
+        for outId, taxonomy in enumerate(taxonomy.keys()):
+            fout.write(str(outId))
+            
+            for sampleId in sampleCounts.keys():
+                if taxonomy in sampleCounts[sampleId]:
+                    fout.write('\t%f' % sampleCounts[sampleId][taxonomy])
+                else:
+                    fout.write('\t0')
+                    
+            fout.write('\t' + taxonomy + '\n')
+                      
+        fout.close()
 
-        otuMetadata = []
-        sparseData = []
-        for rowIndex, otuId in enumerate(otuIds):
-            otuMetadata.append(taxonomy[otuId])
-
-            for colIndex, sampleId in enumerate(sampleIds):
-                if otuId in sampleCounts[sampleId]:
-                    sparseData.append([rowIndex, colIndex, sampleCounts[sampleId][otuId]])
-
-        t = table_factory(sparseData, sampleIds, otuIds, None, otuMetadata, constructor=SparseOTUTable)
-
-        t.getBiomFormatJsonString("CommunityM", direct_io=fout)
-
-    def run(self, configFile, bIgnoreUnmapped, bTreatPairsAsSingles, bUseSingletons, bootstrap, rank, bMode, output):
-        rc = ReadConfig()
-        projectParams, sampleParams = rc.readConfig(configFile, outputDirExists = True)
-
+    def paramsToCountsAndTaxonomy(self, projectParams, sampleParams, bIgnoreUnmapped, bTreatPairsAsSingles, bUseSingletons, bootstrap, rank, bMode):
         # read classification results for all sequence files in each sample
         sampleCounts = {}
         taxonomy = {}
         rankIndex = ranksByLabel[rank]
         for sample in sampleParams:
-            prefix = projectParams['output_dir'] + 'classified/' + sample
+            prefix = os.path.join(projectParams['output_dir'],'classified/',sample)
 
             counts = {}
 
@@ -166,11 +175,12 @@ class BuildTable(object):
                     classificationFile = prefix + '.' + pair1Base[0:pair1Base.rfind('.')] + '.difference.16S.tsv'
                     self.parseSingleClassificationFile(classificationFile, bIgnoreUnmapped, bootstrap, rankIndex, counts, taxonomy)
 
-                    singles = sampleParams[sample]['singles']
-                    for single in singles:
-                        singleBase = ntpath.basename(single)
-                        classificationFile = prefix + '.' + singleBase[0:singleBase.rfind('.')] + '.16S.tsv'
-                        self.parseSingleClassificationFile(classificationFile, bIgnoreUnmapped, bootstrap, rankIndex, counts, taxonomy)
+            if bUseSingletons:
+                singles = sampleParams[sample]['singles']
+                for single in singles:
+                    singleBase = ntpath.basename(single)
+                    classificationFile = prefix + '.' + singleBase[0:singleBase.rfind('.')] + '.16S.tsv'
+                    self.parseSingleClassificationFile(classificationFile, bIgnoreUnmapped, bootstrap, rankIndex, counts, taxonomy)
 
             if bMode == "rel":
                 # relative values
@@ -187,27 +197,33 @@ class BuildTable(object):
                         counts[taxa] = 1.
                     else:
                         counts[taxa] = 0.
-            # else bMode = "rel"
 
             sampleCounts[sampleParams[sample]['name']] = counts
 
-        # write out results in BIOM format
-        self.write(output, sampleCounts, taxonomy)
+        return sampleCounts, taxonomy
+
+
+    def run(self, projectParams, sampleParams, bIgnoreUnmapped, bTreatPairsAsSingles, bUseSingletons, bootstrap, rank, bMode, output):
+        sampleCounts, taxonomy = self.paramsToCountsAndTaxonomy(projectParams, sampleParams, bIgnoreUnmapped, bTreatPairsAsSingles, bUseSingletons, bootstrap, rank, bMode)
+        self.writeTable(output, sampleCounts, taxonomy)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Build table in BIOM format summarizing classified 16S sequences.")
+    parser = argparse.ArgumentParser(description="Build table summarizing classified 16S sequences.")
 
     parser.add_argument('config_file', help='project config file')
-    parser.add_argument('output', help='output file')
+    parser.add_argument('output_table', help='output file')
     parser.add_argument('-u', '--ignore_unmapped', help='do not consider unmapped reads', action="store_true")
     parser.add_argument('-p', '--pairs_as_singles', help='treat paired reads as singletons', action="store_true")
     parser.add_argument('-s', '--singletons', help='use singleton 16S/18S reads', action="store_true")
     parser.add_argument('-b', '--bootstrap', help='bootstrap threshold required to accept classification (default = 0)', type=int, default=0)
-    parser.add_argument('-m', '--mode', help='write values as "rel"ative, "abs"olute or "pre"sence/absense (default = rel)', default="rel",)
-    parser.add_argument('-r', '--rank', help='taxonomic rank of table (choices: Domain, Phylum, Class, Order, Family, Genus, Species, GG_ID), (default = GG_ID)',
-                              choices=['Domain', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species', 'GG_ID'], default='GG_ID')
+    parser.add_argument('-m', '--mode', help='write values as "rel"ative, "abs"olute or "pre"sence/absense (default = abs)', choices=['rel', 'abs', 'pre'], default="abs")
+    parser.add_argument('-r', '--rank', help='taxonomic rank of table (choices: Domain, Phylum, Class, Order, Family, Genus, Species, SEQ_ID), (default = SEQ_ID)',
+                              choices=['Domain', 'Phylum', 'Class', 'Order', 'Family', 'Genus', 'Species', 'SEQ_ID'], default='SEQ_ID')
 
     args = parser.parse_args()
 
+    rc = ReadConfig()
+    projectParams, sampleParams = rc.readConfig(args.config_file, outputDirExists = True)
+
     buildTable = BuildTable()
-    buildTable.run(args.config_file, args.ignore_unmapped, args.pairs_as_singles, args.singletons, args.bootstrap, args.rank, args.mode, args.output)
+    buildTable.run(projectParams, sampleParams, args.ignore_unmapped, args.pairs_as_singles, args.singletons, args.bootstrap, args.rank, args.mode, args.output_table)

@@ -30,16 +30,24 @@ __maintainer__ = 'Donovan Parks'
 __email__ = 'donovan.parks@gmail.com'
 __status__ = 'Development'
 
-ranksByLabel = {'Domain':0, 'Phylum':1, 'Class':2, 'Order':3, 'Family':4, 'Genus':5, 'Species':6, 'GG_ID':7}
-ranksByLevel = {0:'Domain', 1:'Phylum', 2:'Class', 3:'Order', 4:'Family', 5:'Genus', 6:'Species', 7:'GG_ID'}
+ranksByLabel = {'Domain':0, 'Phylum':1, 'Class':2, 'Order':3, 'Family':4, 'Genus':5, 'Species':6, 'SEQ_ID':7}
+ranksByLevel = {0:'Domain', 1:'Phylum', 2:'Class', 3:'Order', 4:'Family', 5:'Genus', 6:'Species', 7:'SEQ_ID'}
 rankPrefixes = {0:'k__', 1:'p__', 2:'c__', 3:'o__', 4:'f__', 5:'g__', 6:'s__', 7:'id__'}
 
 def readTaxonomy(taxonomyFile):
     ggIdToTaxonomy = {}
     for line in open(taxonomyFile):
         lineSplit = line.split('\t')
-        ggIdToTaxonomy[lineSplit[0]] = lineSplit[1].rstrip()
+        
+        seqId = lineSplit[0]
+        taxonomy = [x.strip() for x in lineSplit[1].split(';')]
+        
+        if 'id__' not in taxonomy[-1]:
+            # missing sequence ID field
+            taxonomy += ['id__' + str(seqId)]
 
+        ggIdToTaxonomy[seqId] = taxonomy
+        
     return ggIdToTaxonomy
 
 def parseTaxon(taxon):
@@ -56,15 +64,17 @@ def parseTaxon(taxon):
 
 def LCA(taxonomy1, taxonomy2):
     taxonomy = []
+    bUnmapped = False
     for i in xrange(0, len(ranksByLevel)-1):
         t1, b1 = parseTaxon(taxonomy1[i])
         t2, b2 = parseTaxon(taxonomy2[i])
 
         if t1 != t2:
             if 'unmapped' in t1 or 'unmapped' in t2:
+                bUnmapped = True
                 taxonomy.append(rankPrefixes[i] + 'unmapped')
             else:
-                taxonomy.append(rankPrefixes[i] + 'unclassified')
+                taxonomy.append(rankPrefixes[i] + 'unresolved_by_lca')
         else:
             if b1 == 0 and b2 == 0:
                 taxonomy.append(t1)
@@ -72,10 +82,13 @@ def LCA(taxonomy1, taxonomy2):
                 taxonomy.append(t1 + '(' + str(min(b1, b2)) + ')')
 
     # return reference sequence id
-    t1, b1 = parseTaxon(taxonomy1[len(ranksByLevel)-1])
-    if b1 == 0:
-        taxonomy.append(t1)
+    if not bUnmapped:
+        t1, b1 = parseTaxon(taxonomy1[len(ranksByLevel)-1])
+        if b1 == 0:
+            taxonomy.append(t1)
+        else:
+            taxonomy.append(t1 + '(' + str(min(b1, b2)) + ')')
     else:
-        taxonomy.append(t1 + '(' + str(min(b1, b2)) + ')')
+        taxonomy.append('id__unmapped')
 
     return taxonomy

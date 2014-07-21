@@ -38,14 +38,14 @@ from seqUtils import extractSeqs
 
 class ExtractLSU(object):
     def __init__(self):
-        self.bacteriaModelFile = '/srv/whitlam/bio/db/communitym/LSU_bacteria.hmm'
-        self.bacteriaRevCompModelFile = '/srv/whitlam/bio/db/communitym/LSU_bacteria.revComp.hmm'
+        self.bacteriaModelFile = '/srv/whitlam/bio/db/communitym/ssu_hmm/LSU_bacteria.hmm'
+        self.bacteriaRevCompModelFile = '/srv/whitlam/bio/db/communitym/ssu_hmm/LSU_bacteria.revComp.hmm'
 
-        self.archaeaModelFile = '/srv/whitlam/bio/db/communitym/LSU_archaea.hmm'
-        self.archaeaRevCompModelFile = '/srv/whitlam/bio/db/communitym/LSU_archaea.revComp.hmm'
+        self.archaeaModelFile = '/srv/whitlam/bio/db/communitym/ssu_hmm/LSU_archaea.hmm'
+        self.archaeaRevCompModelFile = '/srv/whitlam/bio/db/communitym/ssu_hmm/LSU_archaea.revComp.hmm'
 
-        self.eukModelFile = '/srv/whitlam/bio/db/communitym/LSU_euk.hmm'
-        self.eukRevCompModelFile = '/srv/whitlam/bio/db/communitym/LSU_euk.revComp.hmm'
+        self.eukModelFile = '/srv/whitlam/bio/db/communitym/ssu_hmm/LSU_euk.hmm'
+        self.eukRevCompModelFile = '/srv/whitlam/bio/db/communitym/ssu_hmm/LSU_euk.revComp.hmm'
 
     def getHits(self, hitTable):
         seqIds = set()
@@ -94,8 +94,8 @@ class ExtractLSU(object):
             if not self.bQuiet:
                 print 'Identifying LSU sequences in paired-end reads: ' + pair1 + ', ' + pair2
 
-            outputPrefix1 = outputDir + 'extracted_lsu/' + sample + '.' + pair1[pair1.rfind('/')+1:pair1.rfind('.')]
-            outputPrefix2 = outputDir + 'extracted_lsu/' + sample + '.' + pair2[pair2.rfind('/')+1:pair2.rfind('.')]
+            outputPrefix1 = os.path.join(outputDir, 'extracted_lsu', sample + '.' + pair1[pair1.rfind('/')+1:pair1.rfind('.')])
+            outputPrefix2 = os.path.join(outputDir, 'extracted_lsu', sample + '.' + pair2[pair2.rfind('/')+1:pair2.rfind('.')])
 
             if not self.bQuiet:
                 print '  Processing file: ' + pair1
@@ -244,7 +244,7 @@ class ExtractLSU(object):
             if not self.bQuiet:
                 print 'Identifying 16S/18S sequences in single-end reads: ' + seqFile
 
-            outputPrefix = outputDir + 'extracted_lsu/' + sample + '.' + seqFile[seqFile.rfind('/')+1:seqFile.rfind('.')]
+            outputPrefix = os.path.join(outputDir, 'extracted_lsu', + sample + '.' + seqFile[seqFile.rfind('/')+1:seqFile.rfind('.')])
 
             self.hmmSearch(seqFile, threads, evalue, outputPrefix)
 

@@ -38,7 +38,6 @@ class SummarizeTableAtRank(object):
     def __init__(self):
         pass
 
-
     def run(self, inputTable, summaryRank, otherThreshold, outputFile):
         rankIndex = ranksByLabel[summaryRank]
 
@@ -56,7 +55,7 @@ class SummarizeTableAtRank(object):
                     taxonomyIndex = len(lineSplit)-1
                     sampleIds = lineSplit[1:taxonomyIndex]
             else:
-                taxonomy = [x.strip() for x in lineSplit[taxonomyIndex].split('; ')]
+                taxonomy = [x.strip() for x in lineSplit[taxonomyIndex].split(';')]
                 summaryLineage = ';'.join(taxonomy[0:rankIndex+1])
 
                 if summaryLineage not in table:
